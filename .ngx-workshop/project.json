@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "kind": "service",
+  "name": "service-ai-chat",
+  "org": "Ngx-Workshop",
+  "seed": "seed-service-nestjs",
+  "port": 3012,
+  "apiPrefix": "ai-chat",
+  "contractsPackage": "@tmdjr/service-ai-chat-contracts"
+}
