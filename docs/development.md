@@ -92,3 +92,7 @@ Source observations from 2026-09-29; these are not executed test results.
 
 Remove/update limitations when fixed. Update architecture and environment guidance
 whenever the corresponding implementation changes.
+
+## Service observability
+
+See [logging and heartbeat](observability.md) for operational endpoint semantics, JSON logging, collector ownership and actual validation.
