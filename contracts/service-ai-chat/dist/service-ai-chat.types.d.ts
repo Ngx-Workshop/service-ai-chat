@@ -3,6 +3,70 @@
  * Do not make direct changes to the file.
  */
 export interface paths {
+    "/ai-chat/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_list"];
+        put?: never;
+        post: operations["ChatController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/conversations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ChatController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/socket-ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ChatController_ticket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai-chat/hello-world": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExampleCrudController_helloWorld"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai-chat/auth-test": {
         parameters: {
             query?: never;
@@ -103,6 +167,67 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ChatCommandDto: {
+            /** @enum {string} */
+            type: "subscribe" | "send_message" | "cancel_run";
+            requestId: string;
+            conversationId: string;
+            clientMessageId?: string;
+            text?: string;
+            runId?: string;
+        };
+        ChatPartDto: {
+            /** @enum {string} */
+            kind: "text" | "tool" | "a2ui";
+            text?: string;
+            payload?: {
+                [key: string]: unknown;
+            };
+        };
+        ChatMessageDto: {
+            id: string;
+            clientMessageId?: string;
+            runId?: string;
+            /** @enum {string} */
+            role: "user" | "assistant";
+            /** @enum {string} */
+            status: "accepted" | "streaming" | "completed" | "failed" | "canceled";
+            parts: components["schemas"]["ChatPartDto"][];
+            createdAt: string;
+            error?: string;
+        };
+        ConversationDto: {
+            id: string;
+            title: string;
+            updatedAt: string;
+            revision: number;
+            activeRunId?: string;
+            messages: components["schemas"]["ChatMessageDto"][];
+        };
+        ChatEventDto: {
+            /** @enum {string} */
+            type: "ready" | "snapshot" | "error";
+            requestId?: string;
+            /** @description Authenticated principal on ready events; permits clearing cached state after account changes. */
+            userId?: string;
+            conversation?: components["schemas"]["ConversationDto"];
+            code?: string;
+            message?: string;
+        };
+        SocketAuthenticateDto: {
+            /** @enum {string} */
+            type: "authenticate";
+            /** @description One-use ticket from POST /ai-chat/socket-ticket. Expires after 30 seconds. */
+            ticket: string;
+        };
+        CreateConversationDto: {
+            /** @default New conversation */
+            title: string;
+        };
+        SocketTicketDto: {
+            ticket: string;
+            expiresAt: string;
+        };
         AuthTestDto: {
             message: string;
         };
@@ -154,6 +279,133 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ChatController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDto"][];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateConversationDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDto"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationDto"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChatController_ticket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SocketTicketDto"];
+                };
+            };
+            /** @description Sign in required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExampleCrudController_helloWorld: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ExampleCrudController_authTest: {
         parameters: {
             query?: never;

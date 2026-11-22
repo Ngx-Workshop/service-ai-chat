@@ -1,6 +1,6 @@
 # Agent entry point — service-ai-chat
 
-This repository is the NestJS service seed for Ngx-Workshop. Assume you have
+This repository owns chat persistence, response runs and WebSocket transport for Ngx-Workshop. Assume you have
 access to this repository only. Frontends, gateway, auth service, and other data
 services are external owners; do not require their source to begin local work.
 
@@ -20,8 +20,9 @@ All links above resolve within this checkout. Do not assume a sibling repository
 - Inspect relevant source and `git status` before editing; preserve unrelated changes.
 - Maintain a local spec, plan, tasks, and handoff for features and behavior changes.
   Small docs edits and mechanical fixes can use a concise change/verification summary.
-- Distinguish current implementation from intended rules. The seed's CRUD routes
-  are currently unguarded; only `auth-test` uses `RemoteAuthGuard`. Do not describe
+- Distinguish current implementation from intended rules. The inherited CRUD routes
+  remain unguarded; new chat HTTP routes and `auth-test` use `RemoteAuthGuard`. Socket
+  access requires a one-use ticket issued through that authenticated HTTP flow. Do not describe
   this as a fully protected production API or silently expand authentication scope.
 - Keep controllers, DTO validation, service logic, and persistence responsibilities
   clear. Do not access another service's collections to bypass its API.

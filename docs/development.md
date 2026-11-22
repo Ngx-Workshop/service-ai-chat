@@ -1,98 +1,56 @@
 # Development and verification
 
-Run commands from this repository root. Use Node 22, matching Docker/CI, and the
-committed lockfiles. Registry access may be required for `@tmdjr/ngx-auth-client`.
+Node 22 is the Docker/CI baseline. Install with npm ci. Runtime requires MONGODB_URI
+and AUTH_BASE_URL; PORT defaults to 3012. Existing .env values are not modified.
+Optional CHAT_ALLOWED_ORIGINS is a comma-separated list of exact browser origins.
 
-## Runtime setup
+| Purpose | Command |
+| --- | --- |
+| Run | npm run start:dev |
+| Build/OpenAPI without infrastructure | GENERATE_OPENAPI=true npm run build |
+| Generate DTOs | npm run contracts:service-ai-chat:gen |
+| Compile DTO package | npm run contracts:service-ai-chat:build |
+| Unit tests without sockets | npm test -- --runInBand src/chat/chat.service.spec.ts src/chat/chat-socket.service.spec.ts src/chat/conversation.repository.spec.ts |
+| HTTP and real WebSocket integration doubles | npm test -- --runInBand src/chat/chat.integration.spec.ts |
+| All tests | npm test -- --runInBand |
+| Focused lint | ./node_modules/.bin/eslint src/chat --no-fix |
 
-Install with `npm ci`. Supply a local `.env` or environment containing:
+Integration tests use an explicit test-only auth guard and in-memory repository;
+they do not verify actual auth or MongoDB. They require localhost listening ports.
+The e2e command now runs that same transport suite instead of the stale GET / seed
+test. Observability tests also open local ports. Do not report sandbox-blocked
+runs as passing. See specs/002-chat-foundation/handoff.md for actual evidence.
 
-```dotenv
-MONGODB_URI=mongodb://127.0.0.1:27017/seed_service_dev
-PORT=3012
-AUTH_BASE_URL=http://localhost:3000
-```
+ChatResponder streams the OpenAI Responses API. Set OPENAI_API_KEY in private
+runtime configuration, CHAT_MODEL (default gpt-6.1-sol), and optionally
+CHAT_MAX_OUTPUT_TOKENS (default 4096; range 256–8192). The request has store:false,
+a 120 second deadline, and at most 20 messages / 32,000 text characters of context.
+Failed/canceled assistant replies are excluded from model context. A2UI and
+MCP execution are future additions; text/tool/A2UI parts have generated contracts.
 
-The URI is an example for a disposable local database. The auth URL is a
-placeholder for your actual auth service; it does not launch one. Inspect the
-installed auth-client package for additional configuration before testing guarded
-routes. Never set `GENERATE_OPENAPI=true` when running the real API.
+Contracts are generated from decorators, never edited directly. The feature uses
+0.0.4-foundation.0 as a local preview; Actions retains its existing deterministic
+0.0.<run number> versioning for registry publication. The consumer vendors the exact
+preview tarball so its checkout is buildable before publication. After publishing,
+update the consumer to the actual published version; do not infer that version.
 
-| Purpose            | Command                                 | Notes                                                                         |
-| ------------------ | --------------------------------------- | ----------------------------------------------------------------------------- |
-| Development        | `npm run start:dev`                     | Requires reachable MongoDB                                                    |
-| Build and OpenAPI  | `GENERATE_OPENAPI=true npm run build`   | `postbuild` generates `openapi.json`; explicit flag avoids import-order issue |
-| Regenerate OpenAPI | `GENERATE_OPENAPI=true npm run openapi` | Uses existing compiled output; build first after source changes               |
-| Production runtime | `npm run start:prod`                    | Runs compiled code with runtime environment                                   |
-| Unit tests         | `npm test -- --runInBand`               | No source unit specs currently present                                        |
-| End-to-end tests   | `npm run test:e2e -- --runInBand`       | Existing test is stale; see below                                             |
-| Lint               | `npm run lint`                          | Uses `--fix` and can modify files; inspect resulting changes                  |
+ws 8.18.0 and @types/ws 8.18.2 match dependencies already installed in the workspace.
+Registry DNS was unavailable; lock entries use their existing registry integrity
+metadata. Verify a clean npm ci with CI's Node/npm before release.
 
-## API/contract changes
+See docs/architecture.md for route/protocol limits and single-instance constraints.
+See docs/observability.md for logs/health. Source/bundle changes are local until
+committed and deployed; live Mongo/auth/Nginx acceptance remains separate.
 
-1. Update DTO decorators, controller responses, service behavior, and schema as
-   required by the feature; keep compatibility decisions in its plan.
-2. Run `GENERATE_OPENAPI=true npm run build`.
-3. Install contract tooling with `npm --prefix contracts/service-ai-chat ci`.
-4. Run `npm run contracts:service-ai-chat:gen` and
-   `npm run contracts:service-ai-chat:build`.
-5. Review OpenAPI and generated type differences, public exports, required/optional
-   fields, status codes, and downstream impact. Record the results.
+## OpenAI deployment
 
-Publishing is a separate release action. The publish script invokes
-`prepublishOnly`, which cleans, regenerates, and builds the contract package.
-Generated files must not replace DTO/controller source as the source of truth.
-Do not claim a version is published merely because local generation succeeded.
+The Actions workflow passes an optional OPENAI_API_KEY repository/organization secret
+and CHAT_MODEL / CHAT_MAX_OUTPUT_TOKENS repository variables. Before replacing the
+container, scripts/prepare-ai-runtime.py requires a key, using the explicit secret
+or a private existing chat config, then the existing AI Publisher / MCP Gateway
+server runtime file. Donor files are never modified or logged. Chat credentials stay
+out of source, build arguments and frontend bundles. Root-owned private regular
+files are required. All automated tests run before publication/deployment in CI.
 
-## Docker
-
-The tracked Compose file is named `docker-compose.yml `, with a trailing space.
-Use `docker compose -f 'docker-compose.yml ' up --build` until that filename is
-deliberately corrected. The file expects `.env` and an existing `ngx-net` network;
-it does not start MongoDB or auth. Container connections need addresses reachable
-from inside Docker, not the host-only localhost example above.
-
-## Verification for implementations
-
-- Add focused tests for changed controller/service behavior, DTO rejection,
-  access policy, not-found/conflict responses, archive state, and version changes
-  as applicable. Use model/guard doubles for unit tests.
-- For HTTP tests, reproduce the global validation and cookie setup from `main.ts`.
-  Use a disposable database when verifying real persistence behavior.
-- For changed endpoints, build and regenerate contracts, then validate representative
-  requests/responses. For auth changes include allowed and denied cases.
-- Record commands, pass/fail/blocked outcomes, and missing environment requirements
-  in the handoff. Unit or build success does not prove live gateway integration.
-- For documentation-only changes, check paths, links, accuracy, and whitespace;
-  application builds are normally unnecessary.
-
-## Known inherited limitations
-
-Source observations from 2026-09-29; these are not executed test results.
-
-- `src/swagger.ts` imports `AppModule` before setting `GENERATE_OPENAPI` inside its
-  function. Conditional imports/providers are evaluated earlier. Set the flag in
-  the command environment as shown above; Docker and CI already do this.
-- `test/app.e2e-spec.ts` expects `GET /` to return `Hello World!`, but this module
-  has no root controller. It imports the real application/database and does not
-  mirror the runtime's global pipe/cookie setup or close the app. Do not count it
-  as a working API regression suite.
-- No `src/**/*.spec.ts` tests exist in this baseline. A no-tests exit is not a pass;
-  add meaningful coverage for implementation work rather than suppressing it.
-- Only `auth-test` has a guard. The demonstration write endpoints are unguarded;
-  a production feature must define its access requirements explicitly.
-- `UpdateExampleMongodbDocDto` is declared in both DTO files. The controller uses
-  `update.dto.ts`; avoid extending the unused duplicate by accident.
-- IDs are passed directly to Mongoose; `findByIdAndUpdate` does not request
-  `runValidators`. Query values other than literal `true`/`false` leave archive
-  filtering unset. Decide and test the intended semantics when touching these areas.
-- The contracts entry point uses `@ts-ignore` for generated exports. A successful
-  compile alone is insufficient: verify generated public exports exist and match
-  consumer imports.
-
-Remove/update limitations when fixed. Update architecture and environment guidance
-whenever the corresponding implementation changes.
-
-## Service observability
-
-See [logging and heartbeat](observability.md) for operational endpoint semantics, JSON logging, collector ownership and actual validation.
+Publisher and gateway credentials do not grant chat tool access. This release
+streams model text only; MCP calls and A2UI execution remain separate features.

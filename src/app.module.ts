@@ -1,3 +1,4 @@
+import { ChatModule } from './chat/chat.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -24,6 +25,7 @@ const DB_IMPORTS =
       isGlobal: true,
     }),
     ...DB_IMPORTS,
+    ChatModule,
     ExampleMongodbDocModule,
   ],
   controllers: [],

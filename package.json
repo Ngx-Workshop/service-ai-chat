@@ -42,7 +42,8 @@
     "mongoose": "^8.16.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "ws": "8.18.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -72,7 +73,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "@types/ws": "8.18.2"
   },
   "jest": {
     "moduleFileExtensions": [

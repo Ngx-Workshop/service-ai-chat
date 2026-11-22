@@ -1,85 +1,80 @@
-# Architecture and external context
+# AI chat architecture
 
-Source baseline: 2026-09-29, commit `4a76d8a`. Recheck source when changing behavior.
+The service owns authenticated conversations, messages and response runs. The
+Angular chat remote owns presentation; auth owns identity; Nginx owns /api routing.
 
-## Role in Ngx-Workshop
+## Source and responsibilities
+- src/chat/chat.controller.ts: guarded conversation list/create/get and socket tickets.
+- src/chat/conversation.repository.ts: Mongo persistence, owner-scoped queries,
+  optimistic revision checks; collection ai_chat_conversations.
+- src/chat/chat.service.ts: idempotent sends, one active run, partial responses,
+  cancellation and restart recovery. Run lifetime is independent of sockets.
+- src/chat/chat-responder.ts: replaceable provider. Uses OpenAI Responses API with streaming, bounded history and output tokens,
+  cancellation and sanitized failure handling. Missing credentials fail explicitly.
+- src/chat/chat-socket.service.ts: ws attached to Nest HTTP server, initial-frame
+  ticket auth, command validation/serialization, owner-scoped subscriptions,
+  backpressure, payload limit, heartbeat and session renewal.
+- src/chat/dto/chat.dto.ts: OpenAPI source for HTTP and WebSocket DTOs.
 
-Ngx-Workshop combines Angular micro-frontends, NestJS services, MongoDB, and an
-Nginx/gateway layer. Services own bounded data domains and share contracts through
-published npm packages. A frontend accesses browser-relative API paths through the
-gateway; it does not connect directly to MongoDB.
+## HTTP and socket contracts
+Browser paths start /api/ai-chat; Nginx strips /api and preserves /ai-chat.
 
-This service is the example CRUD producer. It owns `ExampleMongodbDoc` persistence,
-HTTP routes, validation, OpenAPI generation, and the contracts package. It does not
-own authentication accounts, user profile metadata, navigation, or shell composition.
+| Method | Native path | Access/result |
+| --- | --- | --- |
+| GET | /ai-chat/hello-world | Public inherited diagnostic |
+| GET | /ai-chat/auth-test | Existing RemoteAuthGuard diagnostic |
+| GET | /ai-chat/conversations | Authenticated newest 100 summaries; messages omitted |
+| POST | /ai-chat/conversations | Authenticated create; optional title up to 100 characters |
+| GET | /ai-chat/conversations/:id | Owner only; UUID; other owners receive 404 |
+| POST | /ai-chat/socket-ticket | Authenticated, one-use 30 second ticket |
+| WSS | /ai-chat/socket | Allowed origin and authenticate frame required |
 
-## Source map and request flow
+Sockets exchange JSON directly, without a Socket.IO or Nest event/data envelope.
+First frame: {type:"authenticate",ticket}. Success: {type:"ready",userId}.
+Commands: subscribe, send_message, cancel_run; each includes requestId and
+conversationId. Send also requires clientMessageId and text; cancel requires runId.
+Replies: snapshot with canonical conversation/revision and optional requestId, or
+error with code/message/requestId. Unsolicited snapshots carry streaming updates.
+All shapes are exported from @tmdjr/service-ai-chat-contracts. ApiExtraModels
+includes socket DTOs even though they are not HTTP request/response routes.
 
-HTTP → controller/guards/validation → service → Mongoose model → MongoDB.
+The frontend ignores older revisions and resubscribes after reconnect. This is
+snapshot recovery, not durable event replay. A client message ID prevents retries
+from creating another run. A Mongo revision mismatch rejects concurrent writes.
 
-| Concern                | Source                                                   | Current behavior                                                                 |
-| ---------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Runtime                | `src/main.ts`                                            | Cookies, global whitelist/forbid-extra-fields validation, port 3012 on `0.0.0.0` |
-| Configuration/database | `src/app.module.ts`                                      | Global ConfigModule and `MONGODB_URI`; conditional DB imports                    |
-| Feature wiring         | `src/example-crud/example-crud.module.ts`                | Mongoose model, auth client, generation-only stub providers                      |
-| HTTP                   | `src/example-crud/example-crud.controller.ts`            | `/example-crud` endpoints and Swagger metadata                                   |
-| Business operations    | `src/example-crud/example-crud.service.ts`               | CRUD/archive, missing-record errors, duplicate-name conflicts                    |
-| Input/output shapes    | `src/example-crud/dto/create.dto.ts`, `update.dto.ts`    | Decorated DTOs and partial update DTO                                            |
-| Persistence            | `src/example-crud/schemas/example-mongodb-doc.schema.ts` | Unique name, defaults, update version hook                                       |
-| OpenAPI                | `src/swagger.ts`, `openapi.json`                         | Generated spec, without listening on a port                                      |
-| Consumer package       | `contracts/service-ai-chat/`                             | Generated types/models and package exports                                       |
+## Operational bounds
+One instance initially. Tickets and run abort controllers are in memory. Before
+horizontal scaling, introduce distributed run ownership, tickets and event delivery;
+do not deploy multiple instances against this startup recovery implementation.
+Startup marks abandoned streaming messages failed and clears their active run.
+Graceful shutdown aborts runs; providers must honor AbortSignal while waiting.
 
-### Data behavior
+Max input: 8,000 characters. Max response: 100,000. Max 200 messages per conversation;
+new sends are rejected after 500,000 stored text characters. Newest 100 conversations
+are listed. Socket frame max 32 KiB; queued commands max 16; slow clients close and
+recover snapshots. Ping/pong runs every 25 seconds, auth frame timeout 5 seconds,
+socket session renews after 15 minutes. Revocation is rechecked on ticket renewal,
+not per streamed chunk. No access tokens or tickets appear in socket URLs.
 
-`name` is required and unique; `type` uses `SOME_ENUM` or `SOME_OTHER_ENUM`.
-Defaults include `version: 1`, `archived: false`, a description, and a timestamp.
-An optional address object has street/city/state/zip fields; the DTO requires all
-four nonempty strings if the object is present. Service create/update operations
-set `lastUpdated`; the schema update hook increments `version`. IDs and `__v`
-come from MongoDB/Mongoose. Archive/unarchive reuse update logic.
+MONGODB_URI and AUTH_BASE_URL retain existing configuration. PORT defaults to 3012.
+CHAT_ALLOWED_ORIGINS is optional CSV; defaults to beta/admin production origins and
+http://localhost:4201. No wildcard origins. Existing Nginx Upgrade headers suffice;
+25 second pings stay within its default read timeout.
 
-### Native HTTP routes
+The inherited example CRUD routes and collection remain for API compatibility.
+They are still unguarded; the new chat routes do not use them. Their retirement
+is separate work. OpenAPI generation skips chat database/socket startup only when
+GENERATE_OPENAPI=true; never enable that flag at runtime.
 
-There is no `/api` prefix in `src/main.ts`; the gateway owns the browser prefix.
+## OpenAI deployment
 
-| Method | Path                          | Current access    | Result                                            |
-| ------ | ----------------------------- | ----------------- | ------------------------------------------------- |
-| GET    | `/example-crud/auth-test`     | `RemoteAuthGuard` | Authentication message                            |
-| GET    | `/example-crud`               | No explicit guard | List; optional `archived=true` or `false`         |
-| GET    | `/example-crud/:id`           | No explicit guard | Document or 404                                   |
-| GET    | `/example-crud/name/:name`    | No explicit guard | Document or 404                                   |
-| POST   | `/example-crud`               | No explicit guard | Created document, 201; duplicate name 409         |
-| PATCH  | `/example-crud/:id`           | No explicit guard | Updated document; missing 404, duplicate name 409 |
-| DELETE | `/example-crud/:id`           | No explicit guard | 204; missing 404                                  |
-| PATCH  | `/example-crud/:id/archive`   | No explicit guard | Updated document                                  |
-| PATCH  | `/example-crud/:id/unarchive` | No explicit guard | Updated document                                  |
+The Actions workflow passes an optional OPENAI_API_KEY repository/organization secret
+and CHAT_MODEL / CHAT_MAX_OUTPUT_TOKENS repository variables. Before replacing the
+container, scripts/prepare-ai-runtime.py requires a key, using the explicit secret
+or a private existing chat config, then the existing AI Publisher / MCP Gateway
+server runtime file. Donor files are never modified or logged. Chat credentials stay
+out of source, build arguments and frontend bundles. Root-owned private regular
+files are required. All automated tests run before publication/deployment in CI.
 
-This access table is an observation, not the intended access policy for new
-products. Invalid ID behavior and query coercion need explicit requirements/tests
-when changed; malformed IDs are not currently validated with a dedicated pipe.
-
-## External owners and contracts
-
-| External owner                                       | Boundary                                                             | Isolated-repository approach                                                 |
-| ---------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `seed-mfe-remote` and other consumers                | `@tmdjr/service-ai-chat-contracts`, DTOs and native API behavior     | Generate/build locally; hand off the required consumer version and migration |
-| `service-auth`                                       | `@tmdjr/ngx-auth-client` module/guard, `AUTH_BASE_URL` configuration | Inspect installed package behavior; mock auth in unit tests                  |
-| `service-bff-ngx-workshop` / `nginx-ngx-workshop.io` | Routes browser `/api/example-crud` to native `/example-crud`         | Record desired mapping; do not assume a locally running gateway              |
-| MongoDB infrastructure                               | `MONGODB_URI` supplied at runtime                                    | Use a disposable/local database for integration checks                       |
-
-Names above identify repositories, not filesystem prerequisites. The local
-contracts manifest says `0.0.1`; the frontend seed currently requests published
-`0.0.7`. Release versions must be verified independently rather than inferred from
-this checkout. Generated types describe shapes, not successful runtime integration.
-
-## Runtime and release boundaries
-
-`MONGODB_URI` is needed for normal runtime; `PORT` defaults to 3012. Auth configuration
-is consumed through the external auth client. `GENERATE_OPENAPI=true` is a build
-mode that bypasses database wiring and supplies stubs; it must be set before module
-evaluation. See the development guide for the current generator ordering caveat.
-
-Docker uses Node 22. The existing Compose filename contains a trailing space and
-uses the external `ngx-net` network. The GitHub workflow publishes the contracts
-package and deploys the seed service on pushes to `main`; it contains seed-specific
-targets and database constraints. Review those when adopting the seed.
+Publisher and gateway credentials do not grant chat tool access. This release
+streams model text only; MCP calls and A2UI execution remain separate features.

@@ -50,6 +50,8 @@ jobs:
           GENERATE_OPENAPI: 'true'
         run: |
           npm ci
+          python3 -B -m unittest discover -s scripts -p 'test_*.py'
+          GENERATE_OPENAPI=false npm test -- --runInBand
           npm run build
           npm run openapi
 
@@ -116,6 +118,10 @@ jobs:
           AUTH_BASE_URL: ${{ secrets.AUTH_BASE_URL }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           SSH_HOST_FINGERPRINT: ${{ secrets.SSH_HOST_FINGERPRINT }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          CHAT_MODEL: ${{ vars.CHAT_MODEL || 'gpt-6.1-sol' }}
+          CHAT_MAX_OUTPUT_TOKENS: ${{ vars.CHAT_MAX_OUTPUT_TOKENS || '4096' }}
+          CHAT_ALLOWED_ORIGINS: https://beta.ngx-workshop.io,https://admin.ngx-workshop.io,http://localhost:4201
         run: |
           set -euo pipefail
           umask 077
@@ -151,6 +157,15 @@ jobs:
           if not valid:
               raise SystemExit("MONGODB_URI does not match the restored private database")
 
+          names = (*names, "CHAT_MODEL", "CHAT_MAX_OUTPUT_TOKENS", "CHAT_ALLOWED_ORIGINS")
+          for name in names:
+              value = os.environ.get(name, "")
+              if not value or any(c in value for c in ("\r", "\n", "\0")):
+                  raise SystemExit(f"Missing or invalid {name}")
+          if os.environ.get("OPENAI_API_KEY"):
+              if any(c in os.environ["OPENAI_API_KEY"] for c in ("\r", "\n", "\0")):
+                  raise SystemExit("Invalid OPENAI_API_KEY")
+              names = (*names, "OPENAI_API_KEY")
           path = Path(".env.next")
           path.write_text(
               "".join(f"{name}={os.environ[name]}\n" for name in names)
@@ -191,6 +206,7 @@ jobs:
             tar -xf deploy-source.tar
             rm -f deploy-source.tar
             test -f .dockerignore
+            python3 scripts/prepare-ai-runtime.py
 
             docker network inspect ngx-net >/dev/null 2>&1 || {
               docker network create ngx-net ||
@@ -227,19 +243,19 @@ jobs:
 
             attempt=0
             until docker exec service-ai-chat node -e '
-              const net = require("node:net");
-              const socket = net.connect(3012, "127.0.0.1");
-              socket.setTimeout(2000);
-              socket.on("connect", () => {
-                socket.end();
-                process.exit(0);
-              });
-              socket.on("error", () => process.exit(1));
-              socket.on("timeout", () => process.exit(1));
+              fetch("http://127.0.0.1:3012/health", {signal:AbortSignal.timeout(2000)})
+                .then(async r => { if(!r.ok || (await r.json()).status !== "ok") process.exit(1); })
+                .catch(() => process.exit(1));
             ' >/dev/null 2>&1; do
               attempt=$((attempt + 1))
               if [ "$attempt" -ge 30 ]; then
                 echo "Service failed its startup check" >&2
+                if [ -f .env.previous ] && docker image inspect service-ai-chat:previous >/dev/null 2>&1; then
+                  docker rm -f service-ai-chat
+                  install -m 600 .env.previous .env
+                  docker run -d --name service-ai-chat --env-file .env --network ngx-net --restart unless-stopped -p 3012:3012 service-ai-chat:previous
+                  echo "Restored the previous service image and runtime configuration" >&2
+                fi
                 exit 1
               fi
               sleep 2

@@ -1,6 +1,136 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/ai-chat/conversations": {
+      "get": {
+        "operationId": "ChatController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required"
+          }
+        },
+        "tags": [
+          "chat"
+        ]
+      },
+      "post": {
+        "operationId": "ChatController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required"
+          }
+        },
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/ai-chat/conversations/{id}": {
+      "get": {
+        "operationId": "ChatController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required"
+          }
+        },
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/ai-chat/socket-ticket": {
+      "post": {
+        "operationId": "ChatController_ticket",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocketTicketDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign in required"
+          }
+        },
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/ai-chat/hello-world": {
+      "get": {
+        "operationId": "ExampleCrudController_helloWorld",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ai-chat"
+        ]
+      }
+    },
     "/ai-chat/auth-test": {
       "get": {
         "operationId": "ExampleCrudController_authTest",
@@ -275,6 +405,222 @@
   "servers": [],
   "components": {
     "schemas": {
+      "ChatCommandDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "subscribe",
+              "send_message",
+              "cancel_run"
+            ]
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "clientMessageId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000
+          },
+          "runId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "requestId",
+          "conversationId"
+        ]
+      },
+      "ChatPartDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "tool",
+              "a2ui"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "ChatMessageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "clientMessageId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "streaming",
+              "completed",
+              "failed",
+              "canceled"
+            ]
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatPartDto"
+            }
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "status",
+          "parts",
+          "createdAt"
+        ]
+      },
+      "ConversationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "activeRunId": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "updatedAt",
+          "revision",
+          "messages"
+        ]
+      },
+      "ChatEventDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "snapshot",
+              "error"
+            ]
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string",
+            "description": "Authenticated principal on ready events; permits clearing cached state after account changes."
+          },
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationDto"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "SocketAuthenticateDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "authenticate"
+            ]
+          },
+          "ticket": {
+            "type": "string",
+            "description": "One-use ticket from POST /ai-chat/socket-ticket. Expires after 30 seconds."
+          }
+        },
+        "required": [
+          "type",
+          "ticket"
+        ]
+      },
+      "CreateConversationDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "default": "New conversation"
+          }
+        }
+      },
+      "SocketTicketDto": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticket",
+          "expiresAt"
+        ]
+      },
       "AuthTestDto": {
         "type": "object",
         "properties": {
