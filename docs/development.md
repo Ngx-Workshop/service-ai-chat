@@ -9,7 +9,7 @@ Install with `npm ci`. Supply a local `.env` or environment containing:
 
 ```dotenv
 MONGODB_URI=mongodb://127.0.0.1:27017/seed_service_dev
-PORT=3003
+PORT=3012
 AUTH_BASE_URL=http://localhost:3000
 ```
 
@@ -18,15 +18,15 @@ placeholder for your actual auth service; it does not launch one. Inspect the
 installed auth-client package for additional configuration before testing guarded
 routes. Never set `GENERATE_OPENAPI=true` when running the real API.
 
-| Purpose | Command | Notes |
-| --- | --- | --- |
-| Development | `npm run start:dev` | Requires reachable MongoDB |
-| Build and OpenAPI | `GENERATE_OPENAPI=true npm run build` | `postbuild` generates `openapi.json`; explicit flag avoids import-order issue |
-| Regenerate OpenAPI | `GENERATE_OPENAPI=true npm run openapi` | Uses existing compiled output; build first after source changes |
-| Production runtime | `npm run start:prod` | Runs compiled code with runtime environment |
-| Unit tests | `npm test -- --runInBand` | No source unit specs currently present |
-| End-to-end tests | `npm run test:e2e -- --runInBand` | Existing test is stale; see below |
-| Lint | `npm run lint` | Uses `--fix` and can modify files; inspect resulting changes |
+| Purpose            | Command                                 | Notes                                                                         |
+| ------------------ | --------------------------------------- | ----------------------------------------------------------------------------- |
+| Development        | `npm run start:dev`                     | Requires reachable MongoDB                                                    |
+| Build and OpenAPI  | `GENERATE_OPENAPI=true npm run build`   | `postbuild` generates `openapi.json`; explicit flag avoids import-order issue |
+| Regenerate OpenAPI | `GENERATE_OPENAPI=true npm run openapi` | Uses existing compiled output; build first after source changes               |
+| Production runtime | `npm run start:prod`                    | Runs compiled code with runtime environment                                   |
+| Unit tests         | `npm test -- --runInBand`               | No source unit specs currently present                                        |
+| End-to-end tests   | `npm run test:e2e -- --runInBand`       | Existing test is stale; see below                                             |
+| Lint               | `npm run lint`                          | Uses `--fix` and can modify files; inspect resulting changes                  |
 
 ## API/contract changes
 
