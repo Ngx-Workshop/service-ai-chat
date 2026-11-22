@@ -183,14 +183,13 @@ describe('Chat HTTP and real WebSocket integration', () => {
     );
     expect(await closed).toBe(4401);
   });
-  it('rejects a valid ticket from an unapproved origin', async () => {
+  it('rejects an unapproved origin before authentication', async () => {
     const socket = new WebSocket(url, { origin: 'https://untrusted.example' });
     sockets.push(socket);
-    await new Promise<void>((resolve) =>
-      socket.once('error', (error) => {
-        expect(error.message).toContain('403');
-        resolve();
-      })
-    );
+    await expect(
+      new Promise<string>((resolve) =>
+        socket.once('error', (error) => resolve(error.message))
+      )
+    ).resolves.toContain('403');
   });
 });

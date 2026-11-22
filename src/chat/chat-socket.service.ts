@@ -50,7 +50,13 @@ export class ChatSocketService
       server: this.adapter.httpAdapter.getHttpServer() as Server,
       path: '/ai-chat/socket',
       maxPayload: 32768,
-      verifyClient: (info: { origin: string }) => allowed.has(info.origin),
+      verifyClient: (
+        info: { origin: string },
+        done: (allowed: boolean, status?: number, message?: string) => void
+      ) => {
+        if (allowed.has(info.origin)) done(true);
+        else done(false, 403, 'Origin not allowed');
+      },
     });
     this.server.on('connection', (socket) => this.connect(socket));
     this.subscription = this.chat.updates.subscribe(
