@@ -176,7 +176,7 @@ export class LearningToolsService {
       ui.text(lab.prompt.slice(0, 5500));
       lab.hints.forEach((hint, index) =>
         ui!.followUp(
-          `Explain hint ${index + 1} for coding lab ${lab.id}: ${hint}`,
+          `Explain hint ${index + 1} for coding lab ${lab.id}: ${hint.slice(0, 700)}`,
           `Explore hint ${index + 1}`
         )
       );

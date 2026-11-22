@@ -25,14 +25,16 @@ ChatResponder streams the OpenAI Responses API. Set OPENAI_API_KEY in private
 runtime configuration, CHAT_MODEL (default gpt-6.1-sol), and optionally
 CHAT_MAX_OUTPUT_TOKENS (default 4096; range 256–8192). The request has store:false,
 a 120 second deadline, and at most 20 messages / 32,000 text characters of context.
-Failed/canceled assistant replies are excluded from model context. A2UI and
-MCP execution are future additions; text/tool/A2UI parts have generated contracts.
+Failed/canceled assistant replies are excluded from model context. Completed UI
+content and saved feedback contribute bounded model context. A maximum of three
+bounded tool calls runs in one tool round, followed by a text-only completion.
+Completed provider output, including encrypted reasoning, is replayed in order
+within that request only; it is never exposed to clients or persisted in chat.
 
-Contracts are generated from decorators, never edited directly. The feature uses
-0.0.4-foundation.0 as a local preview; Actions retains its existing deterministic
-0.0.<run number> versioning for registry publication. The consumer vendors the exact
-preview tarball so its checkout is buildable before publication. After publishing,
-update the consumer to the actual published version; do not infer that version.
+Contracts are generated from decorators, never edited directly. Actions publishes
+0.0.<run number>. The A2UI consumer pins published compatible contracts 0.0.7;
+subsequent provider-only fixes retain that wire schema. See the feature handoff
+for actual CI and deployment evidence.
 
 ws 8.18.0 and @types/ws 8.18.2 match dependencies already installed in the workspace.
 Registry DNS was unavailable; lock entries use their existing registry integrity
@@ -52,5 +54,11 @@ server runtime file. Donor files are never modified or logged. Chat credentials 
 out of source, build arguments and frontend bundles. Root-owned private regular
 files are required. All automated tests run before publication/deployment in CI.
 
-Publisher and gateway credentials do not grant chat tool access. This release
-streams model text only; MCP calls and A2UI execution remain separate features.
+The model selects bounded learning tools (plan, practice quiz, workshop search,
+workshop outline and published lab preview). LearningToolsService validates typed
+arguments; LearningSurface compiles approved A2UI v1.0 components. The browser
+executes no model-authored HTML, scripts or arbitrary renderer functions. Full MCP
+OAuth integration remains separate; catalog reads use the existing domain APIs.
+DOCUMENT_BASE_URL and CODING_LABS_BASE_URL are trusted runtime settings copied,
+when available, from the same private existing service configurations. Missing
+catalog configuration produces honest tool failure and useful text fallback.

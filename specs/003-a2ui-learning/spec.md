@@ -1,5 +1,5 @@
 # A2UI learning experience
-Status: In progress
+Status: Implemented; authenticated production acceptance pending
 
 ## Problem and scope
 Replace placeholder interactive parts with real A2UI surfaces in chat. Preserve

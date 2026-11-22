@@ -70,7 +70,13 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
       conversation.messages.reduce(
         (total, item) =>
           total +
-          item.parts.reduce((sum, part) => sum + (part.text?.length || 0), 0),
+          item.parts.reduce(
+            (sum, part) =>
+              sum +
+              (part.text?.length || 0) +
+              (part.ui ? JSON.stringify(part.ui).length : 0),
+            0
+          ),
         0
       ) +
         text.length >

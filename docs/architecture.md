@@ -31,8 +31,10 @@ Browser paths start /api/ai-chat; Nginx strips /api and preserves /ai-chat.
 
 Sockets exchange JSON directly, without a Socket.IO or Nest event/data envelope.
 First frame: {type:"authenticate",ticket}. Success: {type:"ready",userId}.
-Commands: subscribe, send_message, cancel_run; each includes requestId and
-conversationId. Send also requires clientMessageId and text; cancel requires runId.
+Commands: subscribe, send_message, cancel_run, ui_action; each includes requestId and
+conversationId. UI actions require messageId, surfaceId, uiRevision, actionId,
+clientMessageId and bounded values; the server resolves saved actions, checks
+ownership and revision, and persists quiz/checklist feedback. Send also requires clientMessageId and text; cancel requires runId.
 Replies: snapshot with canonical conversation/revision and optional requestId, or
 error with code/message/requestId. Unsolicited snapshots carry streaming updates.
 All shapes are exported from @tmdjr/service-ai-chat-contracts. ApiExtraModels
@@ -50,7 +52,7 @@ Startup marks abandoned streaming messages failed and clears their active run.
 Graceful shutdown aborts runs; providers must honor AbortSignal while waiting.
 
 Max input: 8,000 characters. Max response: 100,000. Max 200 messages per conversation;
-new sends are rejected after 500,000 stored text characters. Newest 100 conversations
+new sends are rejected after 500,000 stored text and serialized UI characters. Newest 100 conversations
 are listed. Socket frame max 32 KiB; queued commands max 16; slow clients close and
 recover snapshots. Ping/pong runs every 25 seconds, auth frame timeout 5 seconds,
 socket session renews after 15 minutes. Revocation is rechecked on ticket renewal,
@@ -76,5 +78,11 @@ server runtime file. Donor files are never modified or logged. Chat credentials 
 out of source, build arguments and frontend bundles. Root-owned private regular
 files are required. All automated tests run before publication/deployment in CI.
 
-Publisher and gateway credentials do not grant chat tool access. This release
-streams model text only; MCP calls and A2UI execution remain separate features.
+The model selects bounded learning tools (plan, practice quiz, workshop search,
+workshop outline and published lab preview). LearningToolsService validates typed
+arguments; LearningSurface compiles approved A2UI v1.0 components. The browser
+executes no model-authored HTML, scripts or arbitrary renderer functions. Full MCP
+OAuth integration remains separate; catalog reads use the existing domain APIs.
+DOCUMENT_BASE_URL and CODING_LABS_BASE_URL are trusted runtime settings copied,
+when available, from the same private existing service configurations. Missing
+catalog configuration produces honest tool failure and useful text fallback.

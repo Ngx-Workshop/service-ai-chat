@@ -148,4 +148,23 @@ describe('A2UI learning actions', () => {
       )
     ).rejects.toThrow();
   });
+  it('bounds persisted interactive history before accepting another run', async () => {
+    const c = await repository.create('alice', 'Large learning history');
+    for (let i = 0; i < 12; i++) {
+      const builder = new LearningSurface('History');
+      for (let j = 0; j < 8; j++) builder.text('x'.repeat(5900));
+      c.messages.push({
+        id: randomUUID(),
+        role: 'assistant',
+        status: 'completed',
+        createdAt: '',
+        parts: [{ kind: 'a2ui', ui: builder.build() }],
+      });
+    }
+    await repository.save('alice', c);
+    await expect(
+      service.send('alice', c.id, randomUUID(), 'Continue')
+    ).rejects.toThrow('Start a new conversation');
+    expect((await repository.get('alice', c.id)).activeRunId).toBeUndefined();
+  });
 });

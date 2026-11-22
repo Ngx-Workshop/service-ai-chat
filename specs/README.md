@@ -20,4 +20,4 @@ the largest folder number is not automatically the active feature.
 
 - [002 Chat foundation](002-chat-foundation/spec.md): Deployed; live UI smoke test pending.
 
-- [003 A2UI learning](003-a2ui-learning/spec.md): In progress.
+- [003 A2UI learning](003-a2ui-learning/spec.md): Implemented; authenticated production acceptance pending.
