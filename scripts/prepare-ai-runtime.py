@@ -15,13 +15,12 @@ def read_private(path):
 
 def prepare(target, sources):
     values = read_private(target)
-    if not values.get('OPENAI_API_KEY'):
-        for source in sources:
-            if source.exists() or source.is_symlink():
-                key = read_private(source).get('OPENAI_API_KEY')
-                if key:
-                    values['OPENAI_API_KEY'] = key
-                    break
+    for source in sources:
+        if source.exists() or source.is_symlink():
+            donor = read_private(source)
+            for name in ('OPENAI_API_KEY', 'DOCUMENT_BASE_URL', 'CODING_LABS_BASE_URL'):
+                if not values.get(name) and donor.get(name):
+                    values[name] = donor[name]
     if not values.get('OPENAI_API_KEY'):
         raise RuntimeError('Missing OPENAI_API_KEY: set the repository/organization secret or provision a private chat runtime file')
     if any(any(c in value for c in ('\r', '\n', '\0')) for value in values.values()):

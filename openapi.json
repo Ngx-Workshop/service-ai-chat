@@ -413,7 +413,8 @@
             "enum": [
               "subscribe",
               "send_message",
-              "cancel_run"
+              "cancel_run",
+              "ui_action"
             ]
           },
           "requestId": {
@@ -431,12 +432,112 @@
           },
           "runId": {
             "type": "string"
+          },
+          "uiRevision": {
+            "type": "number"
+          },
+          "messageId": {
+            "type": "string"
+          },
+          "surfaceId": {
+            "type": "string"
+          },
+          "actionId": {
+            "type": "string"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": true
           }
         },
         "required": [
           "type",
           "requestId",
           "conversationId"
+        ]
+      },
+      "A2uiActionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "prompt",
+              "navigate",
+              "quiz",
+              "progress"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "label"
+        ]
+      },
+      "A2uiSurfaceDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "enum": [
+              "1.0"
+            ]
+          },
+          "surfaceId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/A2uiActionDto"
+            }
+          },
+          "fallback": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "surfaceId",
+          "revision",
+          "messages",
+          "actions",
+          "fallback"
         ]
       },
       "ChatPartDto": {
@@ -452,6 +553,9 @@
           },
           "text": {
             "type": "string"
+          },
+          "ui": {
+            "$ref": "#/components/schemas/A2uiSurfaceDto"
           },
           "payload": {
             "type": "object",

@@ -19,3 +19,5 @@ the largest folder number is not automatically the active feature.
 - [001-service-observability](001-service-observability/spec.md): Implemented and locally verified; Grafana ingestion authorization pending.
 
 - [002 Chat foundation](002-chat-foundation/spec.md): Deployed; live UI smoke test pending.
+
+- [003 A2UI learning](003-a2ui-learning/spec.md): In progress.

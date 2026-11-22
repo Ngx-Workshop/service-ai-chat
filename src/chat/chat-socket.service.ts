@@ -177,6 +177,8 @@ export class ChatSocketService
           dto.clientMessageId,
           dto.text
         );
+      } else if (dto.type === 'ui_action') {
+        conversation = await this.chat.uiAction(session.ownerId, dto);
       } else if (dto.type === 'cancel_run' && dto.runId) {
         conversation = await this.chat.cancel(
           session.ownerId,

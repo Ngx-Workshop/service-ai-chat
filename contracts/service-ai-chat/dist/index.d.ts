@@ -1,3 +1,5 @@
+export type { A2uiActionDto } from './models/A2uiActionDto';
+export type { A2uiSurfaceDto } from './models/A2uiSurfaceDto';
 export type { AuthTestDto } from './models/AuthTestDto';
 export type { ChatCommandDto } from './models/ChatCommandDto';
 export type { ChatEventDto } from './models/ChatEventDto';

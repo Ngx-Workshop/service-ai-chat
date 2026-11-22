@@ -1,4 +1,6 @@
 import { ConfigService } from '@nestjs/config';
+import { LearningToolsService } from './learning-tools.service';
+import { LearningCatalogService } from './learning-catalog.service';
 import { ChatResponder } from './chat-responder';
 import { ChatMessageDto } from './dto/chat.dto';
 
@@ -25,7 +27,7 @@ function response(events: unknown[], fragment = false) {
   );
 }
 async function collect(responder: ChatResponder) {
-  const chunks: string[] = [];
+  const chunks: unknown[] = [];
   for await (const chunk of responder.stream(
     [message],
     new AbortController().signal
@@ -126,6 +128,91 @@ describe('OpenAI chat streaming', () => {
       );
     await expect(collect(new ChatResponder(config))).rejects.toThrow(
       'interrupted or exceeded'
+    );
+  });
+  it('renders a real tool result and returns its output to the provider', async () => {
+    const tools = new LearningToolsService({} as LearningCatalogService);
+    const fetcher = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        response([
+          {
+            type: 'response.output_item.done',
+            item: {
+              type: 'function_call',
+              call_id: 'call_1',
+              name: 'create_practice_quiz',
+              arguments: JSON.stringify({
+                title: 'DI practice',
+                question: 'Which is injected?',
+                choices: ['Service', 'CSS'],
+                correctIndex: 0,
+                explanation: 'Angular injects services.',
+              }),
+            },
+          },
+          { type: 'response.completed' },
+        ])
+      )
+      .mockResolvedValueOnce(
+        response([
+          { type: 'response.output_text.delta', delta: 'Try the question.' },
+          { type: 'response.completed' },
+        ])
+      );
+    const chunks = await collect(new ChatResponder(config, tools));
+    expect(chunks[0]).toMatchObject({
+      kind: 'a2ui',
+      ui: { version: '1.0', revision: 0, fallback: 'DI practice' },
+    });
+    expect(chunks[1]).toBe('Try the question.');
+    const next = JSON.parse(fetcher.mock.calls[1][1]!.body as string) as {
+      tool_choice: string;
+      input: Record<string, unknown>[];
+    };
+    expect(next.tool_choice).toBe('none');
+    expect(next.input.at(-1)).toMatchObject({
+      type: 'function_call_output',
+      call_id: 'call_1',
+    });
+    expect(next.input.at(-1)?.['output']).toContain('"displayed":true');
+  });
+  it('offers text fallback when a catalog tool fails without exposing internals', async () => {
+    const tools = new LearningToolsService({
+      workshops: jest
+        .fn()
+        .mockRejectedValue(new Error('private-upstream-detail')),
+    } as unknown as LearningCatalogService);
+    const fetcher = jest
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        response([
+          {
+            type: 'response.output_item.done',
+            item: {
+              type: 'function_call',
+              call_id: 'c',
+              name: 'find_workshops',
+              arguments: '{"sectionId":"angular"}',
+            },
+          },
+          { type: 'response.completed' },
+        ])
+      )
+      .mockResolvedValueOnce(
+        response([
+          {
+            type: 'response.output_text.delta',
+            delta: 'The catalog is unavailable.',
+          },
+          { type: 'response.completed' },
+        ])
+      );
+    expect(await collect(new ChatResponder(config, tools))).toEqual([
+      'The catalog is unavailable.',
+    ]);
+    expect(fetcher.mock.calls[1][1]!.body).not.toContain(
+      'private-upstream-detail'
     );
   });
 });

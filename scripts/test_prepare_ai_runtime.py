@@ -17,12 +17,14 @@ class RuntimePreparationTests(unittest.TestCase):
             donor = Path(directory) / 'publisher.env'
             target.write_text('PORT=3012\nCHAT_MODEL=gpt-6.1-sol\n')
             target.chmod(0o600)
-            donor.write_text('OPENAI_API_KEY=private-test-key\nOTHER_SECRET=excluded\n')
+            donor.write_text('OPENAI_API_KEY=private-test-key\nDOCUMENT_BASE_URL=http://documents/document\nCODING_LABS_BASE_URL=http://labs/coding-labs\nOTHER_SECRET=excluded\n')
             donor.chmod(0o600)
             original = donor.read_bytes()
             with patch.object(Path, 'lstat', return_value=SimpleNamespace(st_uid=0, st_mode=stat.S_IFREG | 0o600)):
                 runtime.prepare(target, [donor])
             self.assertIn('OPENAI_API_KEY=private-test-key', target.read_text())
+            self.assertIn('DOCUMENT_BASE_URL=http://documents/document', target.read_text())
+            self.assertIn('CODING_LABS_BASE_URL=http://labs/coding-labs', target.read_text())
             self.assertNotIn('OTHER_SECRET', target.read_text())
             self.assertEqual(donor.read_bytes(), original)
             self.assertEqual(target.stat().st_mode & 0o777, 0o600)

@@ -10,6 +10,8 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatSocketService } from './chat-socket.service';
 import { SocketTicketsService } from './socket-tickets.service';
+import { LearningCatalogService } from './learning-catalog.service';
+import { LearningToolsService } from './learning-tools.service';
 import { ChatResponder } from './chat-responder';
 const generating = process.env.GENERATE_OPENAPI === 'true';
 @Module({
@@ -30,6 +32,8 @@ const generating = process.env.GENERATE_OPENAPI === 'true';
     ChatSocketService,
     SocketTicketsService,
     ChatResponder,
+    LearningCatalogService,
+    LearningToolsService,
     ...(generating
       ? [{ provide: getModelToken(ChatConversation.name), useValue: {} }]
       : []),

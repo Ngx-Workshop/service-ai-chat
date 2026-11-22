@@ -15,7 +15,8 @@ import {
   ChatProviderError,
   ChatResponder,
 } from './chat-responder';
-import { ConversationDto } from './dto/chat.dto';
+import { surfaceData } from './a2ui-builder';
+import { ChatCommandDto, ConversationDto } from './dto/chat.dto';
 
 @Injectable()
 export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -132,6 +133,64 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
     await run.done;
     return this.repository.get(ownerId, conversationId);
   }
+  async uiAction(ownerId: string, command: ChatCommandDto) {
+    const conversation = await this.repository.get(
+      ownerId,
+      command.conversationId
+    );
+    const message = conversation.messages.find(
+      (item) => item.id === command.messageId && item.role === 'assistant'
+    );
+    const ui = message?.parts.find(
+      (part) => part.kind === 'a2ui' && part.ui?.surfaceId === command.surfaceId
+    )?.ui;
+    const action = ui?.actions.find((item) => item.id === command.actionId);
+    if (!ui || !action || !command.clientMessageId)
+      throw new BadRequestException('Unknown interactive action');
+    if (ui.revision !== command.uiRevision)
+      throw new ConflictException(
+        'This content changed. Please use the updated version.'
+      );
+    if (action.type === 'prompt' && action.prompt)
+      return this.send(
+        ownerId,
+        conversation.id,
+        command.clientMessageId,
+        action.prompt
+      );
+    if (conversation.activeRunId)
+      throw new ConflictException('Wait for the current response to finish');
+    const values = command.values || {};
+    if (JSON.stringify(values).length > 4096)
+      throw new BadRequestException('Interactive input is too large');
+    const data = surfaceData(ui);
+    if (action.type === 'quiz') {
+      const selected = values['selection'];
+      if (
+        !Array.isArray(selected) ||
+        selected.length !== 1 ||
+        typeof selected[0] !== 'string' ||
+        !action.fields?.includes(selected[0])
+      )
+        throw new BadRequestException('Choose one of the available answers');
+      data['selection'] = selected;
+      data['feedback'] =
+        `${selected[0] === action.answer ? 'Correct!' : 'Not quite.'} ${action.explanation || ''}`;
+    } else if (action.type === 'progress') {
+      for (const field of action.fields || []) {
+        if (typeof values[field] !== 'boolean')
+          throw new BadRequestException('Invalid checklist value');
+        data[field] = values[field];
+      }
+      const fields = action.fields || [];
+      data['feedback'] =
+        `Checklist saved: ${fields.filter((field) => data[field] === true).length} of ${fields.length} steps complete.`;
+    } else throw new BadRequestException('Unsupported interactive action');
+    ui.revision++;
+    const saved = await this.repository.save(ownerId, conversation);
+    this.updates.next({ ownerId, conversation: saved });
+    return saved;
+  }
   private async generate(
     ownerId: string,
     conversation: ConversationDto,
@@ -146,9 +205,20 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
         signal
       )) {
         if (signal.aborted) break;
-        if (message.parts[0].text!.length + delta.length > 100000)
-          throw new Error('Response limit exceeded');
-        message.parts[0].text += delta;
+        if (typeof delta !== 'string') {
+          if (
+            delta.kind !== 'a2ui' ||
+            !delta.ui ||
+            message.parts.length >= 4 ||
+            JSON.stringify(delta).length > 60000
+          )
+            throw new Error('Invalid interactive response');
+          message.parts.push(delta);
+        } else {
+          if (message.parts[0].text!.length + delta.length > 100000)
+            throw new Error('Response limit exceeded');
+          message.parts[0].text += delta;
+        }
         current.messages = current.messages.map((item) =>
           item.runId === runId ? message : item
         );

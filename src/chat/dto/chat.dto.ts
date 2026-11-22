@@ -1,6 +1,10 @@
+import { A2uiSurfaceDto } from './a2ui.dto';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsIn,
+  IsObject,
+  IsInt,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -22,6 +26,7 @@ export class ChatPartDto {
     | 'tool'
     | 'a2ui';
   @ApiPropertyOptional() text?: string;
+  @ApiPropertyOptional({ type: A2uiSurfaceDto }) ui?: A2uiSurfaceDto;
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   payload?: Record<string, unknown>;
 }
@@ -51,9 +56,11 @@ export class SocketTicketDto {
   @ApiProperty() expiresAt: string;
 }
 export class ChatCommandDto {
-  @ApiProperty({ enum: ['subscribe', 'send_message', 'cancel_run'] })
-  @IsIn(['subscribe', 'send_message', 'cancel_run'])
-  type: 'subscribe' | 'send_message' | 'cancel_run';
+  @ApiProperty({
+    enum: ['subscribe', 'send_message', 'cancel_run', 'ui_action'],
+  })
+  @IsIn(['subscribe', 'send_message', 'cancel_run', 'ui_action'])
+  type: 'subscribe' | 'send_message' | 'cancel_run' | 'ui_action';
   @ApiProperty() @IsUUID() requestId: string;
   @ApiProperty() @IsUUID() conversationId: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() clientMessageId?: string;
@@ -64,6 +71,18 @@ export class ChatCommandDto {
   @MaxLength(8000)
   text?: string;
   @ApiPropertyOptional() @IsOptional() @IsUUID() runId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) uiRevision?: number;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() messageId?: string;
+  @ApiPropertyOptional() @IsOptional() @IsUUID() surfaceId?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  actionId?: string;
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @IsOptional()
+  @IsObject()
+  values?: Record<string, unknown>;
 }
 export class ChatEventDto {
   @ApiProperty({ enum: ['ready', 'snapshot', 'error'] }) type:

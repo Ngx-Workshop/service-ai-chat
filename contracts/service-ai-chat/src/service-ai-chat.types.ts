@@ -170,17 +170,47 @@ export interface components {
     schemas: {
         ChatCommandDto: {
             /** @enum {string} */
-            type: "subscribe" | "send_message" | "cancel_run";
+            type: "subscribe" | "send_message" | "cancel_run" | "ui_action";
             requestId: string;
             conversationId: string;
             clientMessageId?: string;
             text?: string;
             runId?: string;
+            uiRevision?: number;
+            messageId?: string;
+            surfaceId?: string;
+            actionId?: string;
+            values?: {
+                [key: string]: unknown;
+            };
+        };
+        A2uiActionDto: {
+            id: string;
+            /** @enum {string} */
+            type: "prompt" | "navigate" | "quiz" | "progress";
+            label: string;
+            prompt?: string;
+            path?: string;
+            answer?: string;
+            explanation?: string;
+            fields?: string[];
+        };
+        A2uiSurfaceDto: {
+            /** @enum {string} */
+            version: "1.0";
+            surfaceId: string;
+            revision: number;
+            messages: {
+                [key: string]: unknown;
+            }[];
+            actions: components["schemas"]["A2uiActionDto"][];
+            fallback: string;
         };
         ChatPartDto: {
             /** @enum {string} */
             kind: "text" | "tool" | "a2ui";
             text?: string;
+            ui?: components["schemas"]["A2uiSurfaceDto"];
             payload?: {
                 [key: string]: unknown;
             };
