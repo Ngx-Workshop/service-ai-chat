@@ -139,6 +139,15 @@ describe('OpenAI chat streaming', () => {
           {
             type: 'response.output_item.done',
             item: {
+              type: 'reasoning',
+              id: 'reasoning1',
+              encrypted_content: 'opaque-state',
+              summary: [],
+            },
+          },
+          {
+            type: 'response.output_item.done',
+            item: {
               type: 'function_call',
               call_id: 'call_1',
               name: 'create_practice_quiz',
@@ -171,6 +180,14 @@ describe('OpenAI chat streaming', () => {
       input: Record<string, unknown>[];
     };
     expect(next.tool_choice).toBe('none');
+    expect(next.input[1]).toMatchObject({
+      type: 'reasoning',
+      encrypted_content: 'opaque-state',
+    });
+    expect(next.input[2]).toMatchObject({
+      type: 'function_call',
+      call_id: 'call_1',
+    });
     expect(next.input.at(-1)).toMatchObject({
       type: 'function_call_output',
       call_id: 'call_1',

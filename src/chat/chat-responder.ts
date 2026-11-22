@@ -82,6 +82,8 @@ export class ChatResponder {
       let output = false;
       let completed = false;
       const calls = new Map<string, Record<string, unknown>>();
+      const outputItems: Record<string, unknown>[] = [];
+      let outputBytes = 0;
       for await (const event of openAiEvents(response.body)) {
         if (
           event['type'] === 'response.output_text.delta' ||
@@ -97,6 +99,16 @@ export class ChatResponder {
           const item = event['item'];
           if (item && typeof item === 'object' && !Array.isArray(item)) {
             const call = item as Record<string, unknown>;
+            if (
+              ['reasoning', 'message', 'function_call'].includes(
+                String(call['type'])
+              )
+            ) {
+              outputBytes += JSON.stringify(call).length;
+              if (outputBytes > 1000000)
+                throw new Error('Provider output limit exceeded');
+              outputItems.push(call);
+            }
             if (
               call['type'] === 'function_call' &&
               typeof call['call_id'] === 'string'
@@ -131,6 +143,9 @@ export class ChatResponder {
         throw new ChatProviderError(
           'The interactive response exceeded its limit. Please try again.'
         );
+      // Replay completed output items in order, including encrypted reasoning.
+      // Provider state remains in this request only; it is never sent to the UI.
+      input.push(...outputItems);
       for (const [callId, call] of calls) {
         const name = call['name'];
         const argumentsText = call['arguments'];
@@ -143,12 +158,6 @@ export class ChatResponder {
           throw new ChatProviderError(
             'The interactive response was invalid. Please try again.'
           );
-        input.push({
-          type: 'function_call',
-          call_id: callId,
-          name,
-          arguments: argumentsText,
-        });
         let result: Record<string, unknown>;
         try {
           const args: unknown = JSON.parse(argumentsText);
