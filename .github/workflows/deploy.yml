@@ -202,6 +202,8 @@ jobs:
             cd /opt/ngx-nestjs-services/service-ai-chat
             trap 'rm -f .env.next deploy-source.tar' EXIT
 
+            test ! -L .env.next
+            chown root:root .env.next
             chmod 600 .env.next
             tar -xf deploy-source.tar
             rm -f deploy-source.tar
