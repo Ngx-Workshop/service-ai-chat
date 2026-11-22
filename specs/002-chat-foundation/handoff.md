@@ -1,6 +1,6 @@
 # Chat foundation handoff
 
-Status: Implemented; integration pending
+Status: Deployed; live UI smoke test pending
 Spec: [spec.md](spec.md)
 Plan: [plan.md](plan.md)
 Tasks: [tasks.md](tasks.md)
@@ -91,3 +91,19 @@ only the OpenAI key from approved private server runtime files; donor files rema
 unchanged. Failed startup restores the previous image and environment when available.
 User explicitly authorized committing and production deployment. Execution evidence
 will be reported from Actions; no successful deployment is implied by this entry.
+
+## Completed deployment evidence
+
+- Service code commit: dd19da6911fa84a261c55977269b0971301087a1.
+- Backend Actions run #6: https://github.com/Ngx-Workshop/service-ai-chat/actions/runs/44982376905 — success; all 20 Jest tests and 3 Python runtime bootstrap tests passed; contracts 0.0.6 published; container health check passed.
+- Frontend code commit: b5624ccdecbc8836551c26b571c4d172fdbfa8cf.
+- Frontend Actions run #2: https://github.com/Ngx-Workshop/mfe-user-journey-chat/actions/runs/44982522066 — success; 7 ChromeHeadless tests, architecture check and production build passed; static promotion and Nginx mount checks passed.
+- Consumer pins published contracts 0.0.5. Its DTOs match deployed 0.0.6; the intervening changes only normalize staging-file ownership and origin-rejection status. The local preview archive has been removed from the consumer.
+- Live Chrome checks: /api/ai-chat/hello-world returned {"message":"Hello, world!"}; /api/ai-chat/conversations returned [] for the authenticated browser session.
+- Live UI/provider smoke test remains pending: the existing browser MFE override points at http://localhost:4201/remoteEntry.js, which failed to load. No user development preferences were changed. Disable the relevant local override before testing the deployed /chat/hello-world journey.
+- Both local main/origin-main refs were synchronized to their exact remote Git objects after publication through the connected GitHub app. Direct CLI push was unavailable because the sandbox could not resolve github.com.
+
+Earlier sandbox-blocked network/browser results remain historical observations; CI
+now supplies successful execution evidence. The earlier unconfigured-provider and
+local-preview notes are superseded by the deployed OpenAI implementation and
+published consumer contracts. A2UI/MCP execution remain separate future work.

@@ -14,9 +14,8 @@ under /api/ai-chat. The existing hello-world endpoint remains available.
 - [Chat foundation handoff](specs/002-chat-foundation/handoff.md)
 - [Observability](docs/observability.md)
 
-One service instance is supported. OpenAI model integration is available; A2UI remains a later feature. Generated
-contracts and a matching consumer preview are local; publication/deployment are
-separate release steps. Inherited example CRUD remains unguarded for compatibility.
+One service instance is supported. OpenAI model integration is available; A2UI remains a later feature. Backend deployment #6 succeeded and published contracts 0.0.6; the chat MFE
+uses the compatible published 0.0.5 contract. Inherited example CRUD remains unguarded for compatibility.
 
 ## OpenAI deployment
 

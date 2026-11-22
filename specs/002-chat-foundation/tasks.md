@@ -11,10 +11,17 @@ Plan: [plan.md](plan.md)
 - [ ] X001 — Publish producer contracts and update consumer to published version;
   deploy service and verify live auth, Mongo and Nginx WebSocket recovery.
 
-- [ ] X002 — Run ChromeHeadless and real HTTP/WebSocket suites in an environment
+- [x] X002 — Run ChromeHeadless and real HTTP/WebSocket suites in an environment
   allowing local listening ports; browser runner startup aborted here (134).
 
 - [x] T005 — Implement bounded OpenAI streaming, sanitized failures and five provider tests.
 - [x] T006 — Prepare private runtime key bootstrap and pre-deployment CI checks.
-- [ ] T007 — Commit/publish backend, observe successful service deployment and contract version.
-- [ ] T008 — Pin published consumer contracts, commit/deploy MFE and verify live endpoints.
+- [x] T007 — Commit/publish backend, observe successful service deployment and contract version.
+- [x] T008 — Pin published consumer contracts, commit/deploy MFE and verify live endpoints.
+
+## Deployment outcome
+T007/T008 complete: backend run #6 and frontend run #2 succeeded. X002 verified
+in CI (20 backend, 3 runtime-bootstrap and 7 frontend browser tests). X001 is
+partially verified: publication/deployment and authenticated live API passed;
+live streamed response/reconnect UI testing awaits disabling the existing local
+remote override. See handoff for exact links and commit IDs.
