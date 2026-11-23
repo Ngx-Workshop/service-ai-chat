@@ -101,3 +101,5 @@ Docker-style no-Git/package-only and production/no-dev npm ci passed locally.
 These fixtures are removed automatically and do not commit to this repository.
 Docker daemon was unavailable, so no actual container build or Node 22 CI execution
 is claimed. See the maintenance audit/handoff for exact remaining checks.
+
+Deployment and npm publication now follow [deployment-workflows](deployment-workflows.md).

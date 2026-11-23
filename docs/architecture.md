@@ -99,3 +99,5 @@ OAuth integration remains separate; catalog reads use the existing domain APIs.
 DOCUMENT_BASE_URL and CODING_LABS_BASE_URL are trusted runtime settings copied,
 when available, from the same private existing service configurations. Missing
 catalog configuration produces honest tool failure and useful text fallback.
+
+Generated deployment orchestration is centrally managed by the Node CLI; see [deployment-workflows](deployment-workflows.md).
