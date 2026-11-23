@@ -1,6 +1,7 @@
 import {
   HttpException,
   Injectable,
+  Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
 } from '@nestjs/common';
@@ -11,10 +12,10 @@ import { plainToInstance } from 'class-transformer';
 import { isUUID, validate } from 'class-validator';
 import { Subscription } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
-import { ChatCommandDto, ChatEventDto, ConversationDto } from './dto/chat.dto';
+import { ChatCommandDto, ChatEventDto } from './dto/chat.dto';
 import { ChatService } from './chat.service';
-import { ConversationRepository } from './conversation.repository';
 import { SocketTicketsService } from './socket-tickets.service';
+import { withLogContext } from '../observability/observability';
 
 type Session = {
   ownerId?: string;
@@ -30,10 +31,10 @@ export class ChatSocketService
   private heartbeat?: NodeJS.Timeout;
   private subscription?: Subscription;
   private readonly sessions = new Map<WebSocket, Session>();
+  private readonly logger = new Logger(ChatSocketService.name);
   constructor(
     private readonly adapter: HttpAdapterHost,
     private readonly chat: ChatService,
-    private readonly repository: ConversationRepository,
     private readonly tickets: SocketTicketsService
   ) {}
   onApplicationBootstrap() {
@@ -133,6 +134,8 @@ export class ChatSocketService
     binary: boolean
   ) {
     let requestId: string | undefined;
+    let dispatched = false;
+    const started = Date.now();
     try {
       if (binary) throw new Error('Binary commands unsupported');
       const value: unknown = JSON.parse(raw);
@@ -160,32 +163,28 @@ export class ChatSocketService
       )
         throw new Error('Invalid command');
       requestId = dto.requestId;
-      let conversation: ConversationDto;
-      if (dto.type === 'subscribe')
-        conversation = await this.repository.get(
-          session.ownerId,
-          dto.conversationId
-        );
-      else if (
-        dto.type === 'send_message' &&
-        dto.clientMessageId &&
-        dto.text !== undefined
-      ) {
-        conversation = await this.chat.send(
-          session.ownerId,
-          dto.conversationId,
-          dto.clientMessageId,
-          dto.text
-        );
-      } else if (dto.type === 'ui_action') {
-        conversation = await this.chat.uiAction(session.ownerId, dto);
-      } else if (dto.type === 'cancel_run' && dto.runId) {
-        conversation = await this.chat.cancel(
-          session.ownerId,
-          dto.conversationId,
-          dto.runId
-        );
-      } else throw new Error('Missing command fields');
+      const ownerId = session.ownerId;
+      dispatched = true;
+      const conversation = await withLogContext({ requestId }, () => {
+        if (dto.type === 'subscribe')
+          return this.chat.get(ownerId, dto.conversationId);
+        else if (
+          dto.type === 'send_message' &&
+          dto.clientMessageId &&
+          dto.text !== undefined
+        ) {
+          return this.chat.send(
+            ownerId,
+            dto.conversationId,
+            dto.clientMessageId,
+            dto.text
+          );
+        } else if (dto.type === 'ui_action') {
+          return this.chat.uiAction(ownerId, dto);
+        } else if (dto.type === 'cancel_run' && dto.runId) {
+          return this.chat.cancel(ownerId, dto.conversationId, dto.runId);
+        } else throw new Error('Missing command fields');
+      });
       session.conversationId = conversation.id;
       this.send(socket, { type: 'snapshot', requestId, conversation });
     } catch (error) {
@@ -194,6 +193,17 @@ export class ChatSocketService
         return;
       }
       const status = error instanceof HttpException ? error.getStatus() : 400;
+      const entry = {
+        event: 'chat_command_failed',
+        outcome:
+          !dispatched || (error instanceof HttpException && status < 500)
+            ? 'rejected'
+            : 'failed',
+        ...(requestId ? { requestId } : {}),
+        durationMs: Date.now() - started,
+      };
+      if (entry.outcome === 'rejected') this.logger.warn(entry);
+      else this.logger.error(entry);
       this.send(socket, {
         type: 'error',
         requestId,

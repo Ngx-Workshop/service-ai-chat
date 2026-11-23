@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { HttpAdapterHost } from '@nestjs/core';
 import { WebSocket } from 'ws';
@@ -37,19 +38,22 @@ describe('Chat socket command boundary without listening ports', () => {
   let repository: MemoryRepository;
   let tickets: SocketTicketsService;
   let socket: TestSocket;
+  let error: jest.SpyInstance;
+  let warn: jest.SpyInstance;
   beforeEach(() => {
+    error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     repository = new MemoryRepository();
     tickets = new SocketTicketsService();
     chat = new ChatService(
       repository as unknown as ConversationRepository,
       new ChatResponder()
     );
-    gateway = new ChatSocketService(
-      {} as HttpAdapterHost,
-      chat,
-      repository as unknown as ConversationRepository,
-      tickets
-    );
+    gateway = new ChatSocketService({} as HttpAdapterHost, chat, tickets);
     socket = new TestSocket();
     gateway['connect'](socket as unknown as WebSocket);
   });
@@ -57,6 +61,7 @@ describe('Chat socket command boundary without listening ports', () => {
     socket.terminate();
     gateway.onModuleDestroy();
     await chat.onModuleDestroy();
+    jest.restoreAllMocks();
   });
   it('rejects commands before authentication and never exposes another account conversation', async () => {
     socket.message({
@@ -135,5 +140,50 @@ describe('Chat socket command boundary without listening ports', () => {
           event.conversation?.messages.length === 2
       )
     ).toBe(true);
+  });
+  it('logs storage failure safely, excludes unvalidated IDs and retains wire errors', async () => {
+    socket.message({
+      type: 'authenticate',
+      ticket: tickets.issue('alice').ticket,
+    });
+    await flush();
+    socket.message({
+      type: 'subscribe',
+      requestId: 'private-request-id',
+      conversationId: randomUUID(),
+    });
+    await flush();
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'chat_command_failed',
+        outcome: 'rejected',
+      })
+    );
+    const requestId = randomUUID();
+    jest
+      .spyOn(chat, 'get')
+      .mockRejectedValueOnce(new Error('private-storage-key'));
+    socket.message({
+      type: 'subscribe',
+      requestId,
+      conversationId: randomUUID(),
+    });
+    await flush();
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith({
+      event: 'chat_command_failed',
+      outcome: 'failed',
+      requestId,
+      durationMs: expect.any(Number) as unknown,
+    });
+    expect(socket.sent.at(-1)).toEqual({
+      type: 'error',
+      requestId,
+      code: '400',
+      message: 'Unable to process the chat command.',
+    });
+    expect(
+      JSON.stringify([error.mock.calls, warn.mock.calls, socket.sent])
+    ).not.toContain('private-');
   });
 });

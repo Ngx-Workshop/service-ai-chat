@@ -1,6 +1,24 @@
 import { ConsoleLogger, INestApplication, Logger } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+type LogContext = { requestId?: string; runId?: string };
+const context = new AsyncLocalStorage<LogContext>();
+const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+export function logContext(): LogContext {
+  return { ...context.getStore() };
+}
+
+export function withLogContext<T>(ids: LogContext, operation: () => T): T {
+  const safe = logContext();
+  for (const key of ['requestId', 'runId'] as const) {
+    const value = ids[key];
+    if (typeof value === 'string' && uuid.test(value)) safe[key] = value;
+  }
+  return context.run(safe, operation);
+}
 
 export function createServiceLogger(): ConsoleLogger {
   return new ConsoleLogger({
@@ -38,7 +56,7 @@ export function httpLoggingMiddleware(logger = new Logger('HTTP')) {
       else if (entry.statusCode >= 400) logger.warn(entry);
       else logger.log(entry);
     });
-    next();
+    withLogContext({ requestId }, next);
   };
 }
 

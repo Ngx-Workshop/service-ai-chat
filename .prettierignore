@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+contracts/
+openapi.json
+vendor/
+vendored/
+*.tsbuildinfo
+package-lock.json
+.husky/_/

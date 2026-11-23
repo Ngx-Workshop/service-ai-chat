@@ -4,10 +4,13 @@ The service owns authenticated conversations, messages and response runs. The
 Angular chat remote owns presentation; auth owns identity; Nginx owns /api routing.
 
 ## Source and responsibilities
-- src/chat/chat.controller.ts: guarded conversation list/create/get and socket tickets.
+
+- src/chat/chat.controller.ts: guarded HTTP metadata and delegation to ChatService
+  for conversation use cases, and SocketTicketsService for tickets.
 - src/chat/conversation.repository.ts: Mongo persistence, owner-scoped queries,
   optimistic revision checks; collection ai_chat_conversations.
-- src/chat/chat.service.ts: idempotent sends, one active run, partial responses,
+- src/chat/chat.service.ts: conversation list/create/get and title normalization,
+  idempotent sends, one active run, partial responses,
   cancellation and restart recovery. Run lifetime is independent of sockets.
 - src/chat/chat-responder.ts: replaceable provider. Uses OpenAI Responses API with streaming, bounded history and output tokens,
   cancellation and sanitized failure handling. Missing credentials fail explicitly.
@@ -16,18 +19,27 @@ Angular chat remote owns presentation; auth owns identity; Nginx owns /api routi
   backpressure, payload limit, heartbeat and session renewal.
 - src/chat/dto/chat.dto.ts: OpenAPI source for HTTP and WebSocket DTOs.
 
+ChatModule keeps all providers private with no exports. Dependency flow is
+controller/socket -> ChatService -> repository/responder -> learning tools ->
+public catalog adapter; transport no longer directly accesses persistence.
+SocketTicketsService remains a separate transport-auth capability. The existing
+global ConfigModule is intentional; no new global module or circular dependency
+was added. Observability helpers carry UUID-only local request/run context without
+changing DTOs, schemas, snapshots or upstream protocols.
+
 ## HTTP and socket contracts
+
 Browser paths start /api/ai-chat; Nginx strips /api and preserves /ai-chat.
 
-| Method | Native path | Access/result |
-| --- | --- | --- |
-| GET | /ai-chat/hello-world | Public inherited diagnostic |
-| GET | /ai-chat/auth-test | Existing RemoteAuthGuard diagnostic |
-| GET | /ai-chat/conversations | Authenticated newest 100 summaries; messages omitted |
-| POST | /ai-chat/conversations | Authenticated create; optional title up to 100 characters |
-| GET | /ai-chat/conversations/:id | Owner only; UUID; other owners receive 404 |
-| POST | /ai-chat/socket-ticket | Authenticated, one-use 30 second ticket |
-| WSS | /ai-chat/socket | Allowed origin and authenticate frame required |
+| Method | Native path                | Access/result                                             |
+| ------ | -------------------------- | --------------------------------------------------------- |
+| GET    | /ai-chat/hello-world       | Public inherited diagnostic                               |
+| GET    | /ai-chat/auth-test         | Existing RemoteAuthGuard diagnostic                       |
+| GET    | /ai-chat/conversations     | Authenticated newest 100 summaries; messages omitted      |
+| POST   | /ai-chat/conversations     | Authenticated create; optional title up to 100 characters |
+| GET    | /ai-chat/conversations/:id | Owner only; UUID; other owners receive 404                |
+| POST   | /ai-chat/socket-ticket     | Authenticated, one-use 30 second ticket                   |
+| WSS    | /ai-chat/socket            | Allowed origin and authenticate frame required            |
 
 Sockets exchange JSON directly, without a Socket.IO or Nest event/data envelope.
 First frame: {type:"authenticate",ticket}. Success: {type:"ready",userId}.
@@ -45,6 +57,7 @@ snapshot recovery, not durable event replay. A client message ID prevents retrie
 from creating another run. A Mongo revision mismatch rejects concurrent writes.
 
 ## Operational bounds
+
 One instance initially. Tickets and run abort controllers are in memory. Before
 horizontal scaling, introduce distributed run ownership, tickets and event delivery;
 do not deploy multiple instances against this startup recovery implementation.

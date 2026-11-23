@@ -50,6 +50,8 @@ jobs:
           GENERATE_OPENAPI: 'true'
         run: |
           npm ci
+          npm run format:check
+          npm run lint:check
           python3 -B -m unittest discover -s scripts -p 'test_*.py'
           GENERATE_OPENAPI=false npm test -- --runInBand
           npm run build

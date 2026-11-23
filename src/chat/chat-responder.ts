@@ -1,8 +1,9 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LearningToolsService, LEARNING_TOOLS } from './learning-tools.service';
 import { ChatMessageDto, ChatPartDto } from './dto/chat.dto';
 import { openAiEvents } from './openai-stream';
+import { logContext } from '../observability/observability';
 
 export class ChatProviderNotConfiguredError extends Error {
   constructor() {
@@ -13,6 +14,7 @@ export class ChatProviderError extends Error {}
 
 @Injectable()
 export class ChatResponder {
+  private readonly logger = new Logger(ChatResponder.name);
   constructor(
     @Optional() private readonly config?: ConfigService,
     @Optional() private readonly learning?: LearningToolsService
@@ -159,6 +161,7 @@ export class ChatResponder {
             'The interactive response was invalid. Please try again.'
           );
         let result: Record<string, unknown>;
+        const started = Date.now();
         try {
           const args: unknown = JSON.parse(argumentsText);
           if (!args || typeof args !== 'object' || Array.isArray(args))
@@ -174,6 +177,13 @@ export class ChatResponder {
           result = { displayed: true, title: part.ui?.fallback };
         } catch {
           if (abort.aborted) abort.throwIfAborted();
+          this.logger.warn({
+            event: 'learning_tool_failed',
+            outcome: 'failed',
+            tool: name,
+            ...logContext(),
+            durationMs: Date.now() - started,
+          });
           result = {
             error:
               'The requested learning content could not be loaded. Do not invent results; explain this and offer useful text help.',

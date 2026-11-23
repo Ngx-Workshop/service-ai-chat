@@ -1,4 +1,7 @@
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { withLogContext } from '../observability/observability';
 import { LearningToolsService } from './learning-tools.service';
 import { LearningCatalogService } from './learning-catalog.service';
 import { ChatResponder } from './chat-responder';
@@ -195,6 +198,9 @@ describe('OpenAI chat streaming', () => {
     expect(next.input.at(-1)?.['output']).toContain('"displayed":true');
   });
   it('offers text fallback when a catalog tool fails without exposing internals', async () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
     const tools = new LearningToolsService({
       workshops: jest
         .fn()
@@ -225,9 +231,25 @@ describe('OpenAI chat streaming', () => {
           { type: 'response.completed' },
         ])
       );
-    expect(await collect(new ChatResponder(config, tools))).toEqual([
-      'The catalog is unavailable.',
-    ]);
+    const requestId = randomUUID();
+    const runId = randomUUID();
+    expect(
+      await withLogContext({ requestId, runId }, () =>
+        collect(new ChatResponder(config, tools))
+      )
+    ).toEqual(['The catalog is unavailable.']);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith({
+      event: 'learning_tool_failed',
+      outcome: 'failed',
+      tool: 'find_workshops',
+      requestId,
+      runId,
+      durationMs: expect.any(Number) as unknown,
+    });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(
+      /private-|sectionId|angular/
+    );
     expect(fetcher.mock.calls[1][1]!.body).not.toContain(
       'private-upstream-detail'
     );

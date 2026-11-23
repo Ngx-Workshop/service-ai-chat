@@ -8,11 +8,16 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/*.mjs\" package.json .prettierrc eslint.config.mjs \".github/workflows/*.yml\"",
+    "prepare": "node -e \"if (!process.env.CI && process.env.HUSKY !== '0' && process.env.NODE_ENV !== 'production' && !(process.env.npm_config_omit || '').split(/[, ]/).includes('dev') && require('node:fs').existsSync('.git')) import('husky').then(({default: install}) => { const error = install(); if (error) throw new Error(error); });\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "lint:check": "eslint src/chat src/observability test --no-fix",
+    "lint:check:all": "eslint \"{src,apps,libs,test}/**/*.ts\" --no-fix",
+    "test:maintenance": "node scripts/test-maintenance.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
@@ -62,7 +67,9 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
+    "husky": "9.1.7",
     "jest": "^29.7.0",
+    "lint-staged": "16.2.7",
     "openapi-typescript": "^7.9.1",
     "openapi-typescript-codegen": "^0.29.0",
     "prettier": "^3.4.2",
@@ -75,6 +82,9 @@
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0",
     "@types/ws": "8.18.2"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs,json,md,yml,yaml}": "prettier --write --ignore-unknown"
   },
   "jest": {
     "moduleFileExtensions": [

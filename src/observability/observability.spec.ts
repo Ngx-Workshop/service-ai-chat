@@ -1,16 +1,23 @@
 import type { Server } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { Controller, Get, INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- Match callable Supertest in CommonJS service builds.
 import request = require('supertest');
 import { ObservabilityModule } from './observability.module';
-import { createServiceLogger, httpLoggingMiddleware } from './observability';
+import {
+  createServiceLogger,
+  httpLoggingMiddleware,
+  logContext,
+  withLogContext,
+} from './observability';
 
 @Controller('items')
 class TestController {
   @Get(':id')
-  get() {
-    return { ok: true };
+  async get() {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    return { ok: true, requestId: logContext().requestId };
   }
 }
 
@@ -87,6 +94,38 @@ describe('Service observability', () => {
       .expect(404);
     expect(warn).toHaveBeenCalled();
     expect(JSON.stringify(warn.mock.calls)).not.toContain('private-body');
+  });
+  it('isolates concurrent HTTP context and never trusts an incoming header', async () => {
+    const responses = await Promise.all(
+      ['private-header\ncontent', randomUUID()].map((id) =>
+        request(app.getHttpServer())
+          .get('/items/example')
+          .set('X-Request-ID', id.replace('\n', '-'))
+          .expect(200)
+      )
+    );
+    const ids = responses.map((response) => response.headers['x-request-id']);
+    expect(new Set(ids).size).toBe(2);
+    responses.forEach((response) => {
+      expect(response.body).toEqual({
+        ok: true,
+        requestId: response.headers['x-request-id'],
+      });
+    });
+    expect(logContext()).toEqual({});
+    expect(JSON.stringify(log.mock.calls)).not.toContain('private-header');
+  });
+  it('bounds correlation IDs and preserves context across async work', async () => {
+    const requestId = randomUUID();
+    const runId = randomUUID();
+    await withLogContext({ requestId }, async () => {
+      await withLogContext({ runId, requestId: 'private-secret' }, async () => {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(logContext()).toEqual({ requestId, runId });
+      });
+      expect(logContext()).toEqual({ requestId });
+    });
+    expect(logContext()).toEqual({});
   });
 
   it('uses native Nest JSON logging with a contextual, structured message', () => {

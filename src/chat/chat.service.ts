@@ -17,6 +17,7 @@ import {
 } from './chat-responder';
 import { surfaceData } from './a2ui-builder';
 import { ChatCommandDto, ConversationDto } from './dto/chat.dto';
+import { logContext, withLogContext } from '../observability/observability';
 
 @Injectable()
 export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -47,6 +48,15 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
     for (const run of this.runs.values()) run.abort.abort();
     await Promise.allSettled([...this.runs.values()].map((run) => run.done));
     this.updates.complete();
+  }
+  list(ownerId: string) {
+    return this.repository.list(ownerId);
+  }
+  create(ownerId: string, title?: string) {
+    return this.repository.create(ownerId, title?.trim() || 'New conversation');
+  }
+  get(ownerId: string, conversationId: string) {
+    return this.repository.get(ownerId, conversationId);
   }
   async send(
     ownerId: string,
@@ -115,10 +125,23 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
       done: undefined as Promise<void> | undefined,
     };
     this.runs.set(runId, run);
+    const started = Date.now();
     // Start after the command acknowledgement, independent of the connection lifetime.
     run.done = new Promise<void>((resolve) => setImmediate(resolve))
-      .then(() => this.generate(ownerId, saved, runId, run.abort.signal))
-      .catch(() => this.logger.error('Chat run persistence failed', { runId }))
+      .then(() =>
+        withLogContext({ runId }, () =>
+          this.generate(ownerId, saved, runId, run.abort.signal, started)
+        )
+      )
+      .catch(() =>
+        this.logger.error({
+          event: 'chat_run_finished',
+          outcome: 'persistence_failed',
+          ...logContext(),
+          runId,
+          durationMs: Date.now() - started,
+        })
+      )
       .finally(() => this.runs.delete(runId));
     return saved;
   }
@@ -201,7 +224,8 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
     ownerId: string,
     conversation: ConversationDto,
     runId: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    started: number
   ) {
     let current = conversation;
     const message = current.messages.find((item) => item.runId === runId)!;
@@ -248,5 +272,13 @@ export class ChatService implements OnApplicationBootstrap, OnModuleDestroy {
     );
     const saved = await this.repository.save(ownerId, current);
     this.updates.next({ ownerId, conversation: saved });
+    const entry = {
+      event: 'chat_run_finished',
+      outcome: message.status,
+      ...logContext(),
+      durationMs: Date.now() - started,
+    };
+    if (message.status === 'failed') this.logger.error(entry);
+    else this.logger.log(entry);
   }
 }

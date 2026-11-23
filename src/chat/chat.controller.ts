@@ -15,7 +15,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { ActiveUser, RemoteAuthGuard } from '@tmdjr/ngx-auth-client';
-import { ConversationRepository } from './conversation.repository';
+import { ChatService } from './chat.service';
 import { SocketTicketsService } from './socket-tickets.service';
 import {
   ChatCommandDto,
@@ -33,13 +33,13 @@ import {
 @Controller('ai-chat')
 export class ChatController {
   constructor(
-    private readonly repository: ConversationRepository,
+    private readonly chat: ChatService,
     private readonly tickets: SocketTicketsService
   ) {}
   @Get('conversations')
   @ApiOkResponse({ type: [ConversationDto] })
   list(@ActiveUser('sub') ownerId: string) {
-    return this.repository.list(ownerId);
+    return this.chat.list(ownerId);
   }
   @Post('conversations')
   @ApiCreatedResponse({ type: ConversationDto })
@@ -47,10 +47,7 @@ export class ChatController {
     @ActiveUser('sub') ownerId: string,
     @Body() dto: CreateConversationDto
   ) {
-    return this.repository.create(
-      ownerId,
-      dto.title?.trim() || 'New conversation'
-    );
+    return this.chat.create(ownerId, dto.title);
   }
   @Get('conversations/:id')
   @ApiOkResponse({ type: ConversationDto })
@@ -58,7 +55,7 @@ export class ChatController {
     @ActiveUser('sub') ownerId: string,
     @Param('id', new ParseUUIDPipe()) id: string
   ) {
-    return this.repository.get(ownerId, id);
+    return this.chat.get(ownerId, id);
   }
   @Post('socket-ticket')
   @ApiCreatedResponse({ type: SocketTicketDto })

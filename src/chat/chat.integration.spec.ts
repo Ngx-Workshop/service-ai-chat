@@ -27,6 +27,7 @@ describe('Chat HTTP and real WebSocket integration', () => {
   let app: INestApplication<Server>;
   let url: string;
   const sockets: WebSocket[] = [];
+  let repository: ConversationRepository;
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [ChatController],
@@ -51,7 +52,10 @@ describe('Chat HTTP and real WebSocket integration', () => {
         },
       })
       .compile();
-    app = module.createNestApplication<INestApplication<Server>>();
+    repository = module.get(ConversationRepository);
+    app = module.createNestApplication<INestApplication<Server>>({
+      logger: false,
+    });
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true })
     );
@@ -120,6 +124,53 @@ describe('Chat HTTP and real WebSocket integration', () => {
       .get('/ai-chat/conversations/invalid')
       .set('x-test-user', 'alice')
       .expect(400);
+  });
+  it('normalizes titles, lists owner summaries and propagates storage failures', async () => {
+    for (const [title, expected] of [
+      ['  Focused topic  ', 'Focused topic'],
+      ['   ', 'New conversation'],
+    ]) {
+      const created = await request(app.getHttpServer())
+        .post('/ai-chat/conversations')
+        .set('x-test-user', 'title-owner')
+        .send({ title })
+        .expect(201);
+      const conversation = created.body as ConversationDto;
+      expect(conversation.title).toBe(expected);
+      const loaded = await request(app.getHttpServer())
+        .get(`/ai-chat/conversations/${conversation.id}`)
+        .set('x-test-user', 'title-owner')
+        .expect(200);
+      expect(loaded.body).toEqual(conversation);
+    }
+    const listed = await request(app.getHttpServer())
+      .get('/ai-chat/conversations')
+      .set('x-test-user', 'title-owner')
+      .expect(200);
+    expect(listed.body).toEqual([
+      expect.objectContaining({ title: 'Focused topic', messages: [] }),
+      expect.objectContaining({ title: 'New conversation', messages: [] }),
+    ]);
+    const other = await request(app.getHttpServer())
+      .get('/ai-chat/conversations')
+      .set('x-test-user', 'unrelated-owner')
+      .expect(200);
+    expect(other.body).toEqual([]);
+    const failure = jest
+      .spyOn(repository, 'create')
+      .mockRejectedValueOnce(new Error('private-storage-detail'));
+    try {
+      const response = await request(app.getHttpServer())
+        .post('/ai-chat/conversations')
+        .set('x-test-user', 'title-owner')
+        .send({})
+        .expect(500);
+      expect(JSON.stringify(response.body)).not.toContain(
+        'private-storage-detail'
+      );
+    } finally {
+      failure.mockRestore();
+    }
   });
   it('authenticates once, acknowledges persisted sends and recovers the terminal snapshot after reconnect', async () => {
     const created = await request(app.getHttpServer())

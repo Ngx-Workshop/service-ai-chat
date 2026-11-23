@@ -4,16 +4,16 @@ Node 22 is the Docker/CI baseline. Install with npm ci. Runtime requires MONGODB
 and AUTH_BASE_URL; PORT defaults to 3012. Existing .env values are not modified.
 Optional CHAT_ALLOWED_ORIGINS is a comma-separated list of exact browser origins.
 
-| Purpose | Command |
-| --- | --- |
-| Run | npm run start:dev |
-| Build/OpenAPI without infrastructure | GENERATE_OPENAPI=true npm run build |
-| Generate DTOs | npm run contracts:service-ai-chat:gen |
-| Compile DTO package | npm run contracts:service-ai-chat:build |
-| Unit tests without sockets | npm test -- --runInBand src/chat/chat.service.spec.ts src/chat/chat-socket.service.spec.ts src/chat/conversation.repository.spec.ts |
-| HTTP and real WebSocket integration doubles | npm test -- --runInBand src/chat/chat.integration.spec.ts |
-| All tests | npm test -- --runInBand |
-| Focused lint | ./node_modules/.bin/eslint src/chat --no-fix |
+| Purpose                                     | Command                                                                                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Run                                         | npm run start:dev                                                                                                                   |
+| Build/OpenAPI without infrastructure        | GENERATE_OPENAPI=true npm run build                                                                                                 |
+| Generate DTOs                               | npm run contracts:service-ai-chat:gen                                                                                               |
+| Compile DTO package                         | npm run contracts:service-ai-chat:build                                                                                             |
+| Unit tests without sockets                  | npm test -- --runInBand src/chat/chat.service.spec.ts src/chat/chat-socket.service.spec.ts src/chat/conversation.repository.spec.ts |
+| HTTP and real WebSocket integration doubles | npm test -- --runInBand src/chat/chat.integration.spec.ts                                                                           |
+| All tests                                   | npm test -- --runInBand                                                                                                             |
+| Focused lint                                | ./node_modules/.bin/eslint src/chat --no-fix                                                                                        |
 
 Integration tests use an explicit test-only auth guard and in-memory repository;
 they do not verify actual auth or MongoDB. They require localhost listening ports.
@@ -36,9 +36,9 @@ Contracts are generated from decorators, never edited directly. Actions publishe
 subsequent provider-only fixes retain that wire schema. See the feature handoff
 for actual CI and deployment evidence.
 
-ws 8.18.0 and @types/ws 8.18.2 match dependencies already installed in the workspace.
-Registry DNS was unavailable; lock entries use their existing registry integrity
-metadata. Verify a clean npm ci with CI's Node/npm before release.
+ws 8.18.0 and @types/ws 8.18.2 remain pinned. Registry installation succeeded
+during maintenance verification; clean install modes passed on local Node 24.9.0 /
+npm 11.6.0. Actual Node 22 Docker/Actions verification remains separate.
 
 See docs/architecture.md for route/protocol limits and single-instance constraints.
 See docs/observability.md for logs/health. Source/bundle changes are local until
@@ -62,3 +62,42 @@ OAuth integration remains separate; catalog reads use the existing domain APIs.
 DOCUMENT_BASE_URL and CODING_LABS_BASE_URL are trusted runtime settings copied,
 when available, from the same private existing service configurations. Missing
 catalog configuration produces honest tool failure and useful text fallback.
+
+## Maintenance checks and staged formatting
+
+`npm ci` enables Husky for a developer Git checkout. Pre-commit runs local
+lint-staged/Prettier on supported staged TS/JS/JSON/Markdown/YAML files only.
+lint-staged hides/restores unstaged hunks and stages formatting; do not add
+`git add` or `--no-stash` to the hook. Syntax/formatting failures block the commit.
+Generated contracts/OpenAPI, lockfile, node_modules, dist, coverage, vendor and
+generated Husky internals are ignored. Existing Prettier style is unchanged.
+
+Prepare is self-contained in package.json so Docker's package-only installation
+works before source is copied. It skips CI, HUSKY=0, production/no-dev and no-Git
+installs; unexpected installer errors fail explicitly. No network fallback runs
+on commit. Husky/lint-staged are devDependencies and require Node 22-compatible
+tooling (lint-staged requires Node >=20.17).
+
+| Check                        | Command / scope                                                         |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| Non-mutating formatting      | `npm run format:check`: source/tests and owned JS/JSON/workflow tooling |
+| Non-mutating maintained lint | `npm run lint:check`: chat, observability and tests                     |
+| Full diagnostic lint         | `npm run lint:check:all`: all application/test TS                       |
+| Hook regression fixtures     | `npm run test:maintenance`                                              |
+| Clean install fixtures too   | `npm run test:maintenance -- --installs`                                |
+
+Formatting all historical docs/configs is deliberately not a CI requirement.
+Staged Markdown/YAML is formatted when committed. Full lint retains 13 errors and
+one warning in legacy CRUD, bootstrap/app module and Swagger; it is not a clean
+gate. No rules were disabled to hide those failures. PR checks and existing
+publication validation run the maintained gates; PR checks also verify hooks.
+The full diagnostic command exposes debt outside the maintained scope.
+
+2026-11-22: all 37 Jest tests, three Python tests, TS type-check, infrastructure-free
+build/OpenAPI, maintained lint and formatting passed. Disposable Git fixtures
+verified partial staging, unrelated unstaged preservation, failed-hook blocking
+and a non-mutating negative formatting gate. Clean developer, CI-flag,
+Docker-style no-Git/package-only and production/no-dev npm ci passed locally.
+These fixtures are removed automatically and do not commit to this repository.
+Docker daemon was unavailable, so no actual container build or Node 22 CI execution
+is claimed. See the maintenance audit/handoff for exact remaining checks.
